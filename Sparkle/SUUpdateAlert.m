@@ -162,9 +162,9 @@
 
 - (BOOL)allowsAutomaticUpdates
 {
-    BOOL allowAutoUpdates = YES; // Defaults to YES.
-    if ([self.host objectForInfoDictionaryKey:SUAllowsAutomaticUpdatesKey])
-        allowAutoUpdates = [self.host boolForInfoDictionaryKey:SUAllowsAutomaticUpdatesKey];
+    BOOL allowAutoUpdates = NO; // Defaults to YES.
+//    if ([self.host objectForInfoDictionaryKey:SUAllowsAutomaticUpdatesKey])
+//        allowAutoUpdates = [self.host boolForInfoDictionaryKey:SUAllowsAutomaticUpdatesKey];
 
     return allowAutoUpdates;
 }
@@ -180,7 +180,7 @@
     }
 
     if ([self.updateItem fileURL] == nil) {
-        [self.installButton setTitle:SULocalizedString(@"Learn More...", @"Alternate title for 'Install Update' button when there's no download in RSS feed.")];
+        [self.installButton setTitle:@"Download"];
         [self.installButton setAction:@selector(openInfoURL:)];
     }
 
