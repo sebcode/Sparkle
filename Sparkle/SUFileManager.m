@@ -39,6 +39,29 @@ static BOOL AuthorizationExecuteWithPrivilegesAndWait(AuthorizationRef authoriza
     return returnValue;
 }
 
+static BOOL SUMakeRefFromURL(NSURL *url, FSRef *ref, NSError **error) {
+
+    char sourcePath[PATH_MAX] = {0};
+    if (![url.path getFileSystemRepresentation:sourcePath maxLength:sizeof(sourcePath)]) {
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadInvalidFileNameError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"File to copy (%@) cannot be represented as a valid file name.", url.lastPathComponent] }];
+        }
+        return NO;
+    }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    OSStatus makeResult = FSPathMakeRefWithOptions((const UInt8 *)sourcePath, kFSPathMakeRefDoNotFollowLeafSymlink, ref, NULL);
+#pragma clang diagnostic pop
+    if (makeResult != noErr) {
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:makeResult userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to create file system reference for source %@.", url.lastPathComponent] }];
+        }
+        return NO;
+    }
+    return YES;
+}
+
 // Used to indicate if the type of NSError requires us to attempt to peform the same operation again except with authentication
 // To be safe, both read and write permission denied's are included because Cocoa's error methods are not very well documented
 // and at least one case is caused from lack of read permissions (-[NSURL setResourceValue:forKey:error:])
@@ -338,43 +361,13 @@ static BOOL AuthorizationExecuteWithPrivilegesAndWait(AuthorizationRef authoriza
         return NO;
     }
     
-    char sourcePath[PATH_MAX] = {0};
-    if (![sourceURL.path getFileSystemRepresentation:sourcePath maxLength:sizeof(sourcePath)]) {
-        if (error != NULL) {
-            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadInvalidFileNameError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"File to copy (%@) cannot be represented as a valid file name.", sourceURL.lastPathComponent] }];
-        }
-        return NO;
-    }
-    
     FSRef sourceRef;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    OSStatus makeSourceResult = FSPathMakeRefWithOptions((const UInt8 *)sourcePath, kFSPathMakeRefDoNotFollowLeafSymlink, &sourceRef, NULL);
-#pragma clang diagnostic pop
-    if (makeSourceResult != noErr) {
-        if (error != NULL) {
-            *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:makeSourceResult userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to create file system reference for source %@.", sourceURL.lastPathComponent] }];
-        }
-        return NO;
-    }
-    
-    char destinationParentPath[PATH_MAX] = {0};
-    if (![destinationURL.URLByDeletingLastPathComponent.path getFileSystemRepresentation:destinationParentPath maxLength:sizeof(destinationParentPath)]) {
-        if (error != NULL) {
-            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadInvalidFileNameError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Destination parent directory to copy file into (%@) cannot be represented as a valid file name.", destinationURL.URLByDeletingLastPathComponent.lastPathComponent] }];
-        }
+    if (!SUMakeRefFromURL(sourceURL, &sourceRef, error)) {
         return NO;
     }
     
     FSRef destinationParentRef;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    OSStatus makeDestinationParentResult = FSPathMakeRefWithOptions((const UInt8 *)destinationParentPath, kFSPathMakeRefDoNotFollowLeafSymlink, &destinationParentRef, NULL);
-#pragma clang diagnostic pop
-    if (makeDestinationParentResult != noErr) {
-        if (error != NULL) {
-            *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:makeDestinationParentResult userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to create file system reference for parent directory %@.", destinationURL.URLByDeletingLastPathComponent.lastPathComponent] }];
-        }
+    if (!SUMakeRefFromURL(destinationURL.URLByDeletingLastPathComponent, &destinationParentRef, error)) {
         return NO;
     }
     
@@ -397,6 +390,15 @@ static BOOL AuthorizationExecuteWithPrivilegesAndWait(AuthorizationRef authoriza
         return NO;
     }
     
+
+    char sourcePath[PATH_MAX] = {0};
+    if (![sourceURL.path getFileSystemRepresentation:sourcePath maxLength:sizeof(sourcePath)]) {
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadInvalidFileNameError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Destination to copy file to (%@) cannot be represented as a valid file name.", sourceURL.lastPathComponent] }];
+        }
+        return NO;
+    }
+
     char destinationPath[PATH_MAX] = {0};
     if (![destinationURL.path getFileSystemRepresentation:destinationPath maxLength:sizeof(destinationPath)]) {
         if (error != NULL) {
@@ -425,16 +427,8 @@ static BOOL AuthorizationExecuteWithPrivilegesAndWait(AuthorizationRef authoriza
  */
 - (BOOL)_getVolumeID:(FSVolumeRefNum *)volumeID ofItemAtURL:(NSURL *)url
 {
-    char path[PATH_MAX] = {0};
-    if (![url.path getFileSystemRepresentation:path maxLength:sizeof(path)]) {
-        return NO;
-    }
-    
     FSRef pathRef;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    if (FSPathMakeRefWithOptions((const UInt8*)path, kFSPathMakeRefDoNotFollowLeafSymlink, &pathRef, NULL) != noErr) {
-#pragma clang diagnostic pop
+    if (!SUMakeRefFromURL(url, &pathRef, NULL)) {
         return NO;
     }
     
@@ -463,9 +457,10 @@ static BOOL AuthorizationExecuteWithPrivilegesAndWait(AuthorizationRef authoriza
         return NO;
     }
     
-    if (![self _itemExistsAtURL:destinationURL.URLByDeletingLastPathComponent]) {
+    NSURL *destinationURLParent = destinationURL.URLByDeletingLastPathComponent;
+    if (![self _itemExistsAtURL:destinationURLParent]) {
         if (error != NULL) {
-            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Destination parent directory to move into (%@) does not exist.", destinationURL.URLByDeletingLastPathComponent.lastPathComponent] }];
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Destination parent directory to move into (%@) does not exist.", destinationURLParent.lastPathComponent] }];
         }
         return NO;
     }
@@ -486,7 +481,7 @@ static BOOL AuthorizationExecuteWithPrivilegesAndWait(AuthorizationRef authoriza
     BOOL foundSourceVolume = [self _getVolumeID:&sourceVolume ofItemAtURL:sourceURL];
     
     FSVolumeRefNum destinationVolume = 0;
-    BOOL foundDestinationVolume = [self _getVolumeID:&destinationVolume ofItemAtURL:destinationURL.URLByDeletingLastPathComponent];
+    BOOL foundDestinationVolume = [self _getVolumeID:&destinationVolume ofItemAtURL:destinationURLParent];
     
     if (foundSourceVolume && foundDestinationVolume && sourceVolume != destinationVolume) {
         return ([self copyItemAtURL:sourceURL toURL:destinationURL error:error] && [self removeItemAtURL:sourceURL error:error]);
