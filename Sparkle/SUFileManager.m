@@ -205,7 +205,7 @@ static BOOL SUMakeRefFromURL(NSURL *url, FSRef *ref, NSError **error) {
         return NO;
     }
     
-    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, XATTR_UTILITY_PATH, kAuthorizationFlagDefaults, (char *[]){ "-s", "-r", "-d", xattrName, path, NULL });
+    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, XATTR_UTILITY_PATH, kAuthorizationFlagDefaults, (char *[]){ "-s", "-r", "-d", xattrName, "--", path, NULL });
     
     if (!success && error != NULL) {
         NSString *errorMessage = [NSString stringWithFormat:@"Authenticated extended attribute deletion for %@ failed on %@.", [NSString stringWithUTF8String:xattrName], rootURL.path.lastPathComponent];
@@ -519,7 +519,7 @@ static BOOL SUMakeRefFromURL(NSURL *url, FSRef *ref, NSError **error) {
         return NO;
     }
     
-    if (!AuthorizationExecuteWithPrivilegesAndWait(_auth, "/bin/mv", kAuthorizationFlagDefaults, (char *[]){ "-f", sourcePath, destinationPath, NULL })) {
+    if (!AuthorizationExecuteWithPrivilegesAndWait(_auth, "/bin/mv", kAuthorizationFlagDefaults, (char *[]){ "-f", "--", sourcePath, destinationPath, NULL })) {
         if (error != NULL) {
             NSString *errorMessage = [NSString stringWithFormat:@"Failed to perform authenticated file move for %@.", sourceURL.lastPathComponent];
             *error = [NSError errorWithDomain:SUSparkleErrorDomain code:SUAuthenticationFailure userInfo:@{ NSLocalizedDescriptionKey:errorMessage }];
@@ -708,7 +708,7 @@ static BOOL SUMakeRefFromURL(NSURL *url, FSRef *ref, NSError **error) {
         return NO;
     }
     
-    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, "/usr/bin/touch", kAuthorizationFlagDefaults, (char *[]){ path, NULL });
+    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, "/usr/bin/touch", kAuthorizationFlagDefaults, (char *[]){ "--", path, NULL });
     if (!success && error != NULL) {
         NSString *errorMessage = [NSString stringWithFormat:@"Failed to update modification & access time on %@ with authentication.", targetURL.path.lastPathComponent];
         *error = [NSError errorWithDomain:SUSparkleErrorDomain code:SUAuthenticationFailure userInfo:@{ NSLocalizedDescriptionKey: errorMessage }];
@@ -761,7 +761,7 @@ static BOOL SUMakeRefFromURL(NSURL *url, FSRef *ref, NSError **error) {
         return NO;
     }
     
-    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, "/bin/mkdir", kAuthorizationFlagDefaults, (char *[]){ path, NULL });
+    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, "/bin/mkdir", kAuthorizationFlagDefaults, (char *[]){ "--", path, NULL });
     if (!success && error != NULL) {
         NSString *errorMessage = [NSString stringWithFormat:@"Failed to make directory %@ with authentication.", url.path.lastPathComponent];
         *error = [NSError errorWithDomain:SUSparkleErrorDomain code:SUAuthenticationFailure userInfo:@{ NSLocalizedDescriptionKey: errorMessage }];
@@ -823,7 +823,7 @@ static BOOL SUMakeRefFromURL(NSURL *url, FSRef *ref, NSError **error) {
         return NO;
     }
     
-    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, "/bin/rm", kAuthorizationFlagDefaults, (char *[]){ "-rf", path, NULL });
+    BOOL success = AuthorizationExecuteWithPrivilegesAndWait(_auth, "/bin/rm", kAuthorizationFlagDefaults, (char *[]){ "-rf", "--", path, NULL });
     if (!success && error != NULL) {
         *error = [NSError errorWithDomain:SUSparkleErrorDomain code:SUAuthenticationFailure userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to remove %@ with authentication.", url.path.lastPathComponent] }];
     }
